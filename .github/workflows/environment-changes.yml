@@ -1,11 +1,14 @@
 name: environment-changes
 
+# Controls when the action will run. 
 on:
   push:
     branches:
       - main
     paths:
       - 'data_migrations/**'
+
+  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
@@ -15,11 +18,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: 3.8.x
 
       - name: Run schemachange
         env:
@@ -27,13 +27,76 @@ jobs:
           SF_USERNAME: ${{ secrets.SF_USERNAME }}
           SF_ROLE: ${{ secrets.SF_ROLE }}
           SF_WAREHOUSE: ${{ secrets.SF_WAREHOUSE }}
-          SF_DATABASE: ${{ secrets.SF_DATABASE }}
-          SNOWSQL_PWD: ${{ secrets.SF_PASSWORD }}  # Using SNOWSQL_PWD instead of -p flag
+          SF_DATABASE:  ${{ secrets.DEV_DB }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SF_PASSWORD }}
         run: |
           echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
           python --version
-          echo "Installing schemachange"
+          echo "Step 1: Installing schemachange"
           pip install schemachange
+          
+          echo "Step 2: Running schemachange"
+          echo "Snowflake account: $SF_ACCOUNT"
+          echo "Snowflake username: $SF_USERNAME"
+          echo "Snowflake role: $SF_ROLE"
+          echo "Snowflake wh: $SF_WAREHOUSE"
+          echo "Snowflake db: $SF_DATABASE"
+          echo "Snowflake password: $SF_PASSWORD"
+          echo "Snowflake snowflake password: $SNOWFLAKE_PASSWORD"
 
-          echo "Running schemachange"
+
+
+          schemachange -f $GITHUB_WORKSPACE/data_migrations -a $SF_ACCOUNT -u $SF_USERNAME -r $SF_ROLE -w $SF_WAREHOUSE -d $SF_DATABASE -c $SF_DATABASE.SCHEMACHANGE.CHANGE_HISTORY --create-change-history-table
+  test:
+    runs-on: ubuntu-latest
+    environment: TEST
+    needs: dev
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          python-version: 3.8.x
+
+      - name: Run schemachange
+        env:
+          SF_ACCOUNT: ${{ secrets.SF_ACCOUNT }}
+          SF_USERNAME: ${{ secrets.SF_USERNAME }}
+          SF_ROLE: ${{ secrets.SF_ROLE }}
+          SF_WAREHOUSE: ${{ secrets.SF_WAREHOUSE }}
+          SF_DATABASE:  ${{ secrets.TEST_DB }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SF_PASSWORD }}
+        run: |
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          python --version
+          echo "Step 1: Installing schemachange"
+          pip install schemachange
+          
+          echo "Step 2: Running schemachange"
+          schemachange -f $GITHUB_WORKSPACE/data_migrations -a $SF_ACCOUNT -u $SF_USERNAME -r $SF_ROLE -w $SF_WAREHOUSE -d $SF_DATABASE -c $SF_DATABASE.SCHEMACHANGE.CHANGE_HISTORY --create-change-history-table
+  prod:
+    runs-on: ubuntu-latest
+    environment: PROD
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          python-version: 3.8.x
+
+      - name: Run schemachange
+        env:
+          SF_ACCOUNT: ${{ secrets.SF_ACCOUNT }}
+          SF_USERNAME: ${{ secrets.SF_USERNAME }}
+          SF_ROLE: ${{ secrets.SF_ROLE }}
+          SF_WAREHOUSE: ${{ secrets.SF_WAREHOUSE }}
+          SF_DATABASE:  ${{ secrets.PROD_DB }}
+          SNOWFLAKE_PASSWORD: ${{ secrets.SF_PASSWORD }}
+        run: |
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          python --version
+          echo "Step 1: Installing schemachange"
+          pip install schemachange
+          
+
+          echo "Step 2: Running schemachange"
           schemachange -f $GITHUB_WORKSPACE/data_migrations -a $SF_ACCOUNT -u $SF_USERNAME -r $SF_ROLE -w $SF_WAREHOUSE -d $SF_DATABASE -c $SF_DATABASE.SCHEMACHANGE.CHANGE_HISTORY --create-change-history-table
